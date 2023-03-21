@@ -9,6 +9,7 @@ class User(BaseModel):
 
     id: int
     name: str | None
+    username: str
 
 
 class ExerciseType(str, Enum):

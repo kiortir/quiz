@@ -26,7 +26,9 @@ async def create_question(
     body: str = Form(), answer: str = Form(), complexity: int = Form()
 ) -> UUID:
     b = ExerciseBody(question=body, answer=answer)
-    excercise = ExerciseBase(body=b, difficulty=complexity, type=ExerciseType.TEXT)
+    excercise = ExerciseBase(
+        body=b, difficulty=complexity, type=ExerciseType.TEXT
+    )
     id = await repository.create_exercise(exercise=excercise)
     return id
 

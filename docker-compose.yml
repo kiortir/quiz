@@ -1,28 +1,32 @@
 version: '3.10'
 
 volumes:
-   pg-data:
+  pg-data:
 
 
 services:
 
-  app:
+  bot:
+    &base
     build:
       context: .
       dockerfile: ./Dockerfile
-    ports:
-      - 5000:5000
-    command: uvicorn asgi:app --host 0.0.0.0 --port 5000 --workers 2
+    command: python bot.py
     environment:
       - media_path=/srv/media
       - media_root=/media/
       - DB_PORT=5432
       - DB_HOST=postgres
-    # volumes:
-    #   - ./media:/srv/media
     depends_on:
       postgres:
         condition: service_healthy
+
+  app:
+    <<: *base
+
+    ports:
+      - 5000:5000
+    command: uvicorn asgi:app --host 0.0.0.0 --port 5000 --workers 2
 
   postgres:
     image: postgres
@@ -36,7 +40,7 @@ services:
     volumes:
       - ./docker/service/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U docker"]
+      test: [ "CMD-SHELL", "pg_isready -U docker" ]
       interval: 2s
       timeout: 5s
       retries: 5

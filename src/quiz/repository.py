@@ -6,28 +6,36 @@ from db import pool
 from quiz import entity
 
 
-async def create_user(telegramid: int, telegram_name: str | None = None):
+async def create_user(
+    telegram_id: int, telegram_username: str, telegram_name: str | None = None
+):
+
     async with pool.connection() as aconn:
         async with aconn.cursor() as cur:
             await cur.execute(
                 """
-                    INSERT INTO telegram_user(id, name) VALUES(%s, %s)
-                    ON CONFLICT DO NOTHING  RETURNING *
+                    INSERT INTO telegram_user(id, name, username) VALUES(%s, %s, %s)
+                    ON CONFLICT DO NOTHING RETURNING *
                 """,
-                (telegramid, telegram_name),
+                (telegram_id, telegram_name, telegram_username),
             )
-            r: tuple[int, str, str] | None = await cur.fetchone()
-
+            r: tuple[int, str, str, str] | None = await cur.fetchone()
             if not r:
                 return None
-            id, name, context = r
-            user = entity.User(id=id, name=name, context=context)
+            id, name, context, username = r
+            user = entity.User(
+                id=id, name=name, context=context, username=username
+            )
             return user
 
 
-async def set_context(userid: int, taskid: UUID):
+async def set_context(userid: int, taskid: UUID | None):
 
-    task = json.dumps({"type": entity.ContextType.TASK, "id": str(taskid)})
+    task = (
+        json.dumps({"type": entity.ContextType.TASK, "id": str(taskid)})
+        if taskid is not None
+        else None
+    )
 
     async with pool.connection() as aconn:
         async with aconn.cursor() as cur:
@@ -40,37 +48,27 @@ async def set_context(userid: int, taskid: UUID):
                 """,
                 (task, userid),
             )
-            r: tuple[int, str, str] | None = await cur.fetchone()
+            r: tuple[int, str, str, str] | None = await cur.fetchone()
 
             if not r:
                 return None
 
-            id, name, context = r
-            user = entity.User(id=id, name=name, context=context)
+            id, name, context, username = r
+            user = entity.User(
+                id=id, name=name, context=context, username=username
+            )
             return user
 
 
-async def destroy_context(userid: int):
+async def add_solved_task(userid: int, taskid: UUID):
 
     async with pool.connection() as aconn:
         async with aconn.cursor() as cur:
             await cur.execute(
                 """
-                UPDATE telegram_user
-                    SET context = null
-                    WHERE id = %s
-                    RETURNING *
-                """,
-                (userid,),
+                INSERT INTO user_exercise(telegram_user_id, exercise_id) VALUES(%s, %s) """,
+                (userid, taskid),
             )
-            r: tuple[int, str, str] | None = await cur.fetchone()
-
-            if not r:
-                return None
-
-            id, name, context = r
-            user = entity.User(id=id, name=name, context=context)
-            return user
 
 
 async def get_context(userid: int):
@@ -86,7 +84,10 @@ async def get_context(userid: int):
             )
             r: tuple[str] | None = await cur.fetchone()
 
-            return r
+            if r is None:
+                return None
+
+            return next(iter(r), None)
 
 
 async def create_exercise(exercise: entity.ExerciseBase) -> UUID:
@@ -122,7 +123,9 @@ async def get_all_exercises() -> entity.Exercise:
             if not r:
                 return None
             exercises = [
-                entity.Exercise(id=id, type=type, body=body, difficulty=difficulty)
+                entity.Exercise(
+                    id=id, type=type, body=body, difficulty=difficulty
+                )
                 for id, type, body, difficulty in r
             ]
             return exercises
@@ -162,12 +165,63 @@ async def get_random_exercise() -> entity.Exercise:
                 """
             )
             r: tuple[UUID, str, str, int] | None = await cur.fetchone()
+            if not r:
+                return None
+            id, type, body, difficulty = r
+            exercise = entity.Exercise(
+                id=id, type=type, body=body, difficulty=difficulty
+            )
+
+            return exercise
+
+
+async def get_random_exercise_for_user(user_id: str) -> entity.Exercise:
+
+    async with pool.connection() as aconn:
+        async with aconn.cursor() as cur:
+            await cur.execute(
+                """
+                SELECT e.id FROM exercise e
+                ORDER BY random()
+                EXCEPT SELECT ue.exercise_id FROM user_exercise ue
+                    WHERE ue.telegram_user_id = %s
+                
+                """,
+                (user_id,),
+            )
+            r: tuple[UUID, str, str, int] | None = await cur.fetchall()
             print(r)
             if not r:
                 return None
             id, type, body, difficulty = r
-            print(id)
             exercise = entity.Exercise(
                 id=id, type=type, body=body, difficulty=difficulty
             )
+
             return exercise
+
+
+async def get_leaderboard(limit: int = 10) -> list[tuple[int, int]]:
+    async with pool.connection() as connection:
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                SELECT
+                    username,
+                    name,
+                    COUNT(telegram_user_id) as count
+                FROM
+                    user_exercise
+                LEFT JOIN telegram_user as t ON user_exercise.telegram_user_id = t.id
+                GROUP BY
+                    telegram_user_id, t.username, t.name
+                ORDER BY
+                    count DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+
+            res = await cursor.fetchall()
+            print(res)
+            return res
