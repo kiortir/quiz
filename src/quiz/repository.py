@@ -179,17 +179,38 @@ async def get_random_exercise_for_user(user_id: str) -> entity.Exercise:
 
     async with pool.connection() as aconn:
         async with aconn.cursor() as cur:
+            # await cur.execute(
+            #     """
+            #     SELECT e.id FROM exercise e
+            #     ORDER BY random()
+            #     EXCEPT SELECT ue.exercise_id FROM user_exercise ue
+            #         WHERE ue.telegram_user_id = %s
+                
+            #     """,
+            #     (user_id,),
+            # )
             await cur.execute(
                 """
-                SELECT e.id FROM exercise e
-                ORDER BY random()
-                EXCEPT SELECT ue.exercise_id FROM user_exercise ue
-                    WHERE ue.telegram_user_id = %s
-                
+                SELECT
+                    *
+                FROM
+                    exercise e
+                WHERE NOT EXISTS (
+                    SELECT
+                        *
+                    FROM
+                        user_exercise
+                    WHERE
+                        telegram_user_id = %s AND
+                        exercise_id = e.id
+                )
+                ORDER BY
+                    random()
+                LIMIT 1
                 """,
                 (user_id,),
             )
-            r: tuple[UUID, str, str, int] | None = await cur.fetchall()
+            r: tuple[UUID, str, str, int] | None = (await cur.fetchall())[0]
             print(r)
             if not r:
                 return None
