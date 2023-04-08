@@ -1,27 +1,62 @@
-import { useState } from 'react'
-import { Grid, Group, TextInput, Checkbox, Flex } from '@mantine/core'
+import { Grid, TextInput, Checkbox, Flex, Center, Button, CloseButton } from '@mantine/core'
+
+export interface OptionData {
+  value: string,
+  isCorrect: boolean,
+}
+
+export interface OptionChangeProps {
+  optionValueChange: (v: string) => void,
+  correctAnswerChange: (v: boolean) => void,
+}
+
+export interface OptionProps {
+  optionValue: string,
+  isCorrectAnswer: boolean,
+
+  onOptionValueChange: (v: string) => void,
+  onCorrectAnswerChange: (v: boolean) => void,
+
+  onDelete: () => void,
+}
 
 export const Option = (props: OptionProps) => {
-  const [optionValue, setOptionValue] = useState<string>('')
-  const [correctAnswer, setCorrectAnswer] = useState<boolean>(false)
   
   return (
-    <Grid w={'100%'} span={24}>
-      <Grid.Col span={11}>
+    <Grid
+      columns={32}
+      w='100%'
+    >
+      <Grid.Col span={2}>
+        <Center
+          w='100%'
+          h='100%'
+        >
+          <CloseButton 
+            size='lg'
+            color='red'
+            onClick={props.onDelete}
+          />
+        </Center>
+      </Grid.Col>
+      <Grid.Col span={28}>
         <TextInput
           placeholder='Вариант ответа'
-          value={optionValue}
-          onChange={(event) => setOptionValue(event.currentTarget.value)}
+          value={props.optionValue}
+          onChange={(e) => props.onOptionValueChange(e.currentTarget.value)}
           required
         />
       </Grid.Col>
-      <Grid.Col span={1}>
-        <Flex justify="center" align="center">
+      <Grid.Col span={2}>
+        <Center
+          w='100%'
+          h='100%'
+        >
           <Checkbox
-            value={correctAnswer}
-            onChange={(_event) => setCorrectAnswer(!correctAnswer)}
+            checked={props.isCorrectAnswer}
+            onChange={(e) => props.onCorrectAnswerChange(e.currentTarget.checked)}
           />
-        </Flex>
+        </Center>
       </Grid.Col>
     </Grid>
   )
